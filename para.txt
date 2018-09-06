@@ -1,0 +1,4 @@
+3 lines, userid, password, login url
+test
+test
+https://ckip.worksap.co.jp/cws/cws/srwtimerec

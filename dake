@@ -1,0 +1,56 @@
+# -*- coding: UTF-8 -*-
+
+import sys
+import requests
+import re
+
+print("program starts");
+
+def checkResult(str):
+    wrongPass = "ユーザーＩＤまたはパスワードに誤りがあります。";
+    recorded = "Your attendance was recorded.";ds
+    wp = re.search(wrongPass, str);
+    rec = re.search(recorded, str);
+    if wp is not None:
+        return -1;
+    else:
+        if rec is None:
+            return 0;
+        else:
+            return 1;
+
+# open para file and read the paras:
+para_file = open('para.txt', 'r');
+para_file.readline(); # to skip the first line
+user_id = para_file.readline().replace('\n', '').strip(); # remove the \n also white space in front and end
+password = para_file.readline().replace('\n', '').strip();
+loginurl = para_file.readline().replace('\n', '').strip();
+
+print('read user id: ' + user_id);
+print('read password: ' + password);
+print('read login url: ' + loginurl);
+
+login_paras = {
+    'user_id': user_id,
+    'password': password,
+    'timezone': '480',
+    'dakoku': 'syussya',
+    'watch':''
+}
+
+requests = requests.Session();
+r = requests.post(loginurl, data=login_paras);
+
+# decode the response
+content = r.content;
+text = content.decode('shiftjis');
+
+# check if the response contains the error message or the success dake message
+rec_result = checkResult(text);
+if rec_result is -1 :
+    print("the user id and password does not match");
+else:
+    if rec_result is 1:
+        print('today\'s dake is recorded');
+    else:
+        print('something is wrong with today\'s dake , please check');
