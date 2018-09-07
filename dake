@@ -3,54 +3,128 @@
 import sys
 import requests
 import re
+import datetime
+import logging
+from pytz import timezone
+import pytz
 
-print("program starts");
+print("program starts")
+
+def log(content):
+    singapore = timezone('Asia/Singapore')
+    time = singapore.localize(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S %z')
+    logging.info(time + ' ' + content)
 
 def checkResult(str):
-    wrongPass = "ユーザーＩＤまたはパスワードに誤りがあります。";
-    recorded = "Your attendance was recorded.";ds
-    wp = re.search(wrongPass, str);
-    rec = re.search(recorded, str);
+    wrong_pass = "ユーザーＩＤまたはパスワードに誤りがあります。"
+    recorded = "Your attendance was recorded."
+    wp = re.search(wrong_pass, str)
+    rec = re.search(recorded, str)
     if wp is not None:
-        return -1;
+        return -1
     else:
         if rec is None:
-            return 0;
+            return 0
         else:
-            return 1;
+            return 1
 
-# open para file and read the paras:
-para_file = open('para.txt', 'r');
-para_file.readline(); # to skip the first line
-user_id = para_file.readline().replace('\n', '').strip(); # remove the \n also white space in front and end
-password = para_file.readline().replace('\n', '').strip();
-loginurl = para_file.readline().replace('\n', '').strip();
+def isPublicHoliday(): # current ph checking is upto 2018.12.31 specified holidays
+    singapore = timezone('Asia/Singapore')
+    cur_datetime = singapore.localize(datetime.datetime.now())
+    cur_dt = cur_datetime.strftime("%d %b %Y")
+    cur_day, cur_mon, cur_year = cur_dt.split(' ')
+    weekday = cur_datetime.isoweekday()
+    if weekday is 6 or weekday is 7:
+        return True
 
-print('read user id: ' + user_id);
-print('read password: ' + password);
-print('read login url: ' + loginurl);
+    fn = 'ph'
+    try:
+        with open(fn, 'r') as ph_file:
+            line = ph_file.readline().replace("\n", '').strip()
+            while line is not '':
+                day, mon, year = line.split(" ")
+                if int(day) == int(cur_day) and mon.lower() == cur_mon.lower() and year == cur_year:
+                    print('today is public holiday ' + day, mon, year)
+                    log('No record for today because of public holiday')
+                    ph_file.close()
+                    return True
+                line = ph_file.readline().replace("\n", '').strip()
+            ph_file.close()
+    except IOError:
+        print("cannot read file:", fn)
+    return False;
 
-login_paras = {
-    'user_id': user_id,
-    'password': password,
-    'timezone': '480',
-    'dakoku': 'syussya',
-    'watch':''
-}
 
-requests = requests.Session();
-r = requests.post(loginurl, data=login_paras);
+# get current datetime
 
-# decode the response
-content = r.content;
-text = content.decode('shiftjis');
+def dake(user, pw, url):
+    login_paras = {
+        'user_id': user,
+        'password': pw,
+        'timezone': '480',
+        'dakoku': 'syussya',
+        'watch': ''
+    }
 
-# check if the response contains the error message or the success dake message
-rec_result = checkResult(text);
-if rec_result is -1 :
-    print("the user id and password does not match");
-else:
-    if rec_result is 1:
-        print('today\'s dake is recorded');
+    r = requests.Session()
+    r = requests.post(url, data=login_paras)
+
+    # decode the response
+    content = r.content
+    text = content.decode('shiftjis')
+
+    # check if the response contains the error message or the success dake message
+    rec_result = checkResult(text)
+    if rec_result is -1:
+        print("the user id and password does not match")
+        log('user credential is not correct, attendance not recorded')
     else:
-        print('something is wrong with today\'s dake , please check');
+        if rec_result is 1:
+            print('today\'s dake is recorded')
+            log('Attendance is recorded')
+        else:
+            print('something is wrong with today\'s dake , please check')
+
+def loadCrendial(filename):
+    try:
+        with open(fn, 'r') as para_file:
+            line = para_file.readline()  # to skip the first line
+            user_id = para_file.readline().replace('\n', '').strip()  # remove the \n also white space in front and end
+            password = para_file.readline().replace('\n', '').strip()
+            loginurl = para_file.readline().replace('\n', '').strip()
+            para_file.close()
+
+            if user_id == '':
+                print('user id is not defined in file, line 2')
+            if password == '':
+                print('password is not defined in file, line 3')
+            if loginurl == '':
+                print('login url is not defined in file, line 4')
+
+            if user_id == '' or password == '' or loginurl == '':
+                return []
+
+            return [user_id, password, loginurl]
+    except IOError:
+        print("cannot open file:", fn);
+    return []
+
+
+
+# init logging
+logging.basicConfig(filename='logger.log', level=logging.INFO)
+
+# skip the dake if today is saturday or sunday
+if isPublicHoliday():
+    print('today is public holiday, no dake is needed ')
+else:
+    # open para file and read the paras:
+    fn = 'para.txt'
+    if len(loadCrendial(fn)) == 3:
+        user, pw, url = loadCrendial(fn)
+        print('read user id: ' + user)
+        print('read password: ' + pw)
+        print('read login url: ' + url)
+        dake(user, pw, url)
+
+sys.exit()
